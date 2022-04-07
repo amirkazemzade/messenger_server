@@ -1,18 +1,19 @@
-package Models;
+package models;
 
 public class User {
     private int id;
     private String username;
     private String password;
 
-    public User(){}
+    public User() {
+    }
 
-    public User(String username, String password){
+    public User(String username, String password) {
         this.username = username;
         this.password = password;
     }
 
-    public User(String username, String password, int id){
+    public User(String username, String password, int id) {
         new User(username, password);
         this.id = id;
     }

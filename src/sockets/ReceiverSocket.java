@@ -1,4 +1,7 @@
-import Models.User;
+package sockets;
+
+import Exceptions.MyServerException;
+import models.User;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -17,7 +20,7 @@ public class ReceiverSocket {
     private final int serverPort = 40000;
 
     // function that starts socket
-    void run() {
+    public void run() {
         System.out.println("starting Receiver Socket...");
         Thread thread = new Thread(() -> {
             try {
@@ -26,6 +29,7 @@ public class ReceiverSocket {
                 server.bind(new InetSocketAddress(InetAddress.getByAddress(serverAddress), serverPort));
                 System.out.println("Receiver Socket has started");
                 while (true) {
+                    // todo add a new thread here
                     try {
                         System.out.println("waiting for a connection request from a client");
                         // accepting client connect request
@@ -38,9 +42,13 @@ public class ReceiverSocket {
                         try {
                             String message = in.readUTF();
                             handleRequest(message, socket);
-                        } catch (Exception e) {
+                        } catch (MyServerException e) {
                             e.printStackTrace();
-                            DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+                            DataOutputStream out = new DataOutputStream(
+                                    new BufferedOutputStream(
+                                            socket.getOutputStream()
+                                    )
+                            );
                             out.writeUTF(e.getMessage());
                             out.flush();
                             socket.close();
@@ -59,7 +67,7 @@ public class ReceiverSocket {
     }
 
     // determines request from message and calls appropriate socket to handle it
-    private void handleRequest(String message, Socket socket) throws Exception {
+    private void handleRequest(String message, Socket socket) throws MyServerException {
         String[] messageArray = message.split(" -Option ");
         String request = messageArray[0];
         if (request.matches("Make")) {
@@ -67,34 +75,34 @@ public class ReceiverSocket {
         } else if (request.matches("Connect")) {
             handleConnect(socket, messageArray);
         } else {
-            throw new Exception("Unknown Request");
+            throw new MyServerException("Unknown Request");
         }
     }
 
     // handles make request
-    private void handleMake(Socket socket, String[] messageArray) throws Exception {
+    private void handleMake(Socket socket, String[] messageArray) throws MyServerException {
         User user = extractUser(messageArray);
         if (user.getUsername() == null || user.getPassword() == null)
-            throw new Exception("Invalid \"Make\" Request Format");
+            throw new MyServerException("Invalid \"Make\" Request Format");
         UserSocket userSocket = new UserSocket();
         userSocket.createUser(user.getUsername(), user.getPassword(), socket);
     }
 
     // handles connect request
-    private void handleConnect(Socket socket, String[] messageArray) throws Exception {
+    private void handleConnect(Socket socket, String[] messageArray) throws MyServerException {
         User user = extractUser(messageArray);
         if (user.getUsername() == null || user.getPassword() == null)
-            throw new Exception("Invalid \"Connect\" Request Format");
+            throw new MyServerException("Invalid \"Connect\" Request Format");
         UserSocket userSocket = new UserSocket();
         userSocket.loginUser(user.getUsername(), user.getPassword(), socket);
     }
 
     // extracts user information from received values
-    private User extractUser(String[] messageArray){
+    private User extractUser(String[] messageArray) {
         String username = null;
         String password = null;
         for (int i = 1; i < messageArray.length; i++) {
-            String[] option = messageArray[i].split("<|>|:");
+            String[] option = messageArray[i].split("[<>:]");
             if (option[1].matches("user")) username = option[2];
             else if (option[1].matches("pass")) password = option[2];
         }
