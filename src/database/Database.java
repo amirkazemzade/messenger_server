@@ -419,7 +419,7 @@ public class Database {
                     String.format(
                             "select * from group_message " +
                                     "where group_id in (SELECT group_id from group_users where user_id = %d) " +
-                                    "and (receiver_id is null or receiver_id = %d)",
+                                    "and (receiver_id is null or receiver_id = \"null\" or receiver_id = %d)",
                             userId, userId
                     )
             );
@@ -442,7 +442,7 @@ public class Database {
                                     "where group_id in " +
                                     "(SELECT group_id from group_users " +
                                     "where user_id = %d and group_users.group_id = %d) " +
-                                    "and (receiver_id is null or receiver_id = %d)",
+                                    "and (receiver_id is null or receiver_id = \"null\" or receiver_id = %d)",
                             userId, groupTableId, userId
                     )
             );
@@ -465,10 +465,12 @@ public class Database {
             String senderUsername = null;
             String receiverUsername = null;
             if (senderId != null){
-                senderUsername = getUsername(Integer.parseInt(senderId));
+                if (!senderId.equals("null"))
+                    senderUsername = getUsername(Integer.parseInt(senderId));
             }
             if (receiverId != null){
-                receiverUsername = getUsername(Integer.parseInt(receiverId));
+                if (!receiverId.equals("null"))
+                    receiverUsername = getUsername(Integer.parseInt(receiverId));
             }
             String groupId = getGroupId(messageGroupId);
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");

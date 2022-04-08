@@ -3,6 +3,7 @@ package sockets;
 import Exceptions.MyServerException;
 import database.Database;
 import models.GroupMessage;
+
 import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -107,13 +108,9 @@ public class GMSocket {
         String userId = validateUser(sid);
         if (userId == null) throw new MyServerException("Invalid SID");
 
-        db.addUserToGroup(groupId, userId);
-        String joinMessage = String.format("%s joined the chat", userId);
-        String welcomeMessage = String.format("Hi %s, welcome to the %s chat room.", userId, groupId);
-        sendGM(groupId, joinMessage, joinMessage.getBytes().length, sid, null, socket);
-        sendGM(groupId, welcomeMessage, welcomeMessage.getBytes().length, sid, userId, socket);
         try {
             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+            joinGroup(groupId, userId);
             out.writeUTF("JoinedGroup");
             out.flush();
             socket.close();
@@ -121,6 +118,14 @@ public class GMSocket {
             e.printStackTrace();
             throw new MyServerException("Something went wrong");
         }
+    }
+
+    private void joinGroup(String groupId, String userId) throws MyServerException {
+        db.addUserToGroup(groupId, userId);
+        String joinMessage = String.format("%s joined the chat", userId);
+        String welcomeMessage = String.format("Hi %s, welcome to the %s chat room.", userId, groupId);
+        sendGM(groupId, joinMessage, joinMessage.getBytes().length, null, null);
+        sendGM(groupId, welcomeMessage, welcomeMessage.getBytes().length, null, userId);
     }
 
 
@@ -144,6 +149,7 @@ public class GMSocket {
             out.writeUTF("GroupCreated");
             out.flush();
             socket.close();
+            joinGroup(groupId, userId);
         } catch (IOException e) {
             e.printStackTrace();
             throw new MyServerException("Something went wrong");
@@ -163,7 +169,7 @@ public class GMSocket {
 
         try {
             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
-            String response = "USERS_LIST\r\n";
+            String response = "USERS_LIST:\r\n";
             for (int i = 0; i < users.size(); i++) {
                 if (i != 0) response = response.concat("|");
                 response = response.concat(String.format("<%s>", users.get(i)));
@@ -177,6 +183,7 @@ public class GMSocket {
         }
 
     }
+
     private void handleGM(Socket socket, String[] messageArray) throws MyServerException {
         String sid = null;
         String groupId = null;
@@ -201,7 +208,16 @@ public class GMSocket {
             throw new MyServerException("message length should be a number");
         }
 
-        sendGM(groupId, message, length, sid, null, socket);
+        try {
+            sendGM(groupId, message, length, sid, null);
+            DataOutputStream senderOut = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+            senderOut.writeUTF("SENT GM");
+            senderOut.flush();
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
     }
 
     private void handleGMGetAll(Socket socket, String[] messageArray) throws MyServerException {
@@ -265,27 +281,17 @@ public class GMSocket {
             String message,
             int length,
             String sid,
-            String receiverUsername,
-            Socket senderSocket
-    ) {
+            String receiverUsername
+    ) throws MyServerException {
         try {
-            DataOutputStream senderOut = new DataOutputStream(new BufferedOutputStream(senderSocket.getOutputStream()));
             String senderUsername;
-            try {
-                senderUsername = validateUser(sid);
-                Timestamp sendTime = new Timestamp(System.currentTimeMillis());
-                db.saveGM(groupId, senderUsername, receiverUsername, message);
-                System.out.printf("a group message sent from %s to %s: \"%s\"\n", senderUsername, groupId, message);
-                sendGMToOnlineUsers(groupId, senderUsername, receiverUsername, message, length, sendTime);
-                sendGMToOnlineUsers(groupId, senderUsername, receiverUsername, message, length, sendTime);
-                senderOut.writeUTF("SENT PM");
-                senderOut.flush();
-                senderSocket.close();
-            } catch (MyServerException e) {
-                senderOut.writeUTF(String.format("ERROR -Option <reason:%s>", e.getMessage()));
-                senderOut.flush();
-                senderSocket.close();
-            }
+            senderUsername = validateUser(sid);
+            Timestamp sendTime = new Timestamp(System.currentTimeMillis());
+            db.saveGM(groupId, senderUsername, receiverUsername, message);
+            System.out.printf("a group message sent from %s to %s: \"%s\"\n", senderUsername, groupId, message);
+            sendGMToOnlineUsers(groupId, senderUsername, receiverUsername, message, length, sendTime);
+            sendGMToOnlineUsers(groupId, senderUsername, receiverUsername, message, length, sendTime);
+
 
         } catch (IOException e) {
             e.printStackTrace();
