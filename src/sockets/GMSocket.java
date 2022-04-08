@@ -67,6 +67,8 @@ public class GMSocket {
             handleGroupConnect(socket, messageArray);
         } else if (request.matches("Group")) {
             handleGroupJoin(socket, messageArray);
+        } else if (request.matches("End")) {
+            handleLeaveGroup(socket, messageArray);
         } else if (request.matches("CreateGroup")) {
             handleCreateGroup(socket, messageArray);
         } else if (request.matches("Users")) {
@@ -79,6 +81,33 @@ public class GMSocket {
             handleGM(socket, messageArray);
         } else {
             throw new MyServerException("Unknown Request");
+        }
+    }
+
+    private void handleLeaveGroup(Socket socket, String[] messageArray) throws MyServerException {
+        String sid = null;
+        String groupId = null;
+        for (int i = 1; i < messageArray.length; i++) {
+            String[] option = messageArray[i].split("[<>:]");
+            if (option[1].matches("SID")) sid = option[2];
+            else if (option[1].matches("gname")) groupId = option[2];
+        }
+
+        if (sid == null || groupId == null) throw new MyServerException("Invalid \"End\" request format");
+        String userId = validateUser(sid);
+        if (userId == null) throw new MyServerException("Invalid SID");
+
+        try {
+            DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+            db.removeUserFromGroup(userId, groupId);
+            String leaveMessage = String.format("%s left the %s chatroom", userId, groupId);
+            sendGM(groupId, leaveMessage, leaveMessage.getBytes().length, null, null);
+            out.writeUTF("LeftGroup");
+            out.flush();
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
         }
     }
 

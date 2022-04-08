@@ -505,4 +505,22 @@ public class Database {
             throw new MyServerException("Something went wrong!");
         }
     }
+
+    public void removeUserFromGroup(String username, String groupId) throws MyServerException {
+        try {
+            Statement statement = connection.createStatement();
+            statement.executeUpdate(
+                    String.format(
+                            "DELETE FROM \"group_users\" " +
+                                    "WHERE group_id IN (SELECT id FROM \"group\" WHERE group_id = \"%s\")\n" +
+                                    "  AND user_id IN (SELECT id FROM user WHERE username=\"%s\")",
+                            groupId,
+                            username
+                    )
+            );
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong!");
+        }
+    }
 }
