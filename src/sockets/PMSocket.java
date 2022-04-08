@@ -144,7 +144,7 @@ public class PMSocket {
 
         String initialMessage = String.format("hey %s, %s wants to talk to you.", receiverUsername, senderUsername);
 
-        sendPM(receiverUsername, initialMessage, initialMessage.length(), sid, socket);
+        sendPM(receiverUsername, initialMessage, initialMessage.getBytes().length, sid, socket);
     }
 
     private void handlePM(Socket socket, String[] messageArray) throws MyServerException {
@@ -203,6 +203,7 @@ public class PMSocket {
                 senderUsername = validateUser(sid);
                 Timestamp sendTime = new Timestamp(System.currentTimeMillis());
                 db.savePM(senderUsername, receiverUsername, message);
+                System.out.printf("a private message sent from %s to %s: \"%s\"\n", senderUsername, receiverUsername, message);
                 sendPMToOnlineUser(receiverUsername, senderUsername, receiverUsername, message, messageLength, sendTime);
                 sendPMToOnlineUser(senderUsername, senderUsername, receiverUsername, message, messageLength, sendTime);
                 senderOut.writeUTF("SENT PM");
@@ -219,7 +220,14 @@ public class PMSocket {
         }
     }
 
-    private void sendPMToOnlineUser(String deliverTo, String senderUsername, String receiverUsername, String message, int messageLength, Timestamp sendTime) throws IOException {
+    private void sendPMToOnlineUser(
+            String deliverTo,
+            String senderUsername,
+            String receiverUsername,
+            String message,
+            int messageLength,
+            Timestamp sendTime
+    ) throws IOException {
         if (onlineUsers.containsKey(deliverTo)) {
             Socket receiverSocket = onlineUsers.get(deliverTo);
             DataOutputStream out =

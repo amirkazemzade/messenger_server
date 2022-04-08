@@ -18,6 +18,7 @@ public class UserSocket {
             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
             String id;
             try {
+                if (password.length() < 6) throw new MyServerException("Password should be characters or longer");
                 id = db.insertUser(username, password);
             } catch (MyServerException e) {
                 out.writeUTF(String.format("User Not Accepted -Option <reason:\"%s\">", e.getMessage()));

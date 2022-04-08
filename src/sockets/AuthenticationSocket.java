@@ -13,7 +13,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 // handling request sent to server and calling the appropriate class to send response
-public class ReceiverSocket {
+public class AuthenticationSocket {
 
     // address and port of Receiver Socket
     private final byte[] serverAddress = {127, 0, 0, 1};

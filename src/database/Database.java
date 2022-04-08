@@ -1,6 +1,7 @@
 package database;
 
 import Exceptions.MyServerException;
+import models.GroupMessage;
 import models.PrivateMessage;
 import models.Session;
 
@@ -37,6 +38,8 @@ public class Database {
             e.printStackTrace();
         }
     }
+
+    /*** User ***/
 
     // creates a new user in database
     public String insertUser(String username, String password) throws MyServerException {
@@ -84,6 +87,8 @@ public class Database {
         }
     }
 
+    // finds username of user with user id,
+    // returns null if no user were found
     private String getUsername(int userId) throws MyServerException {
         try {
             Statement statement = connection.createStatement();
@@ -101,6 +106,8 @@ public class Database {
         }
     }
 
+    // checks if sid is valid,
+    // returns username if it found user and returns null if it does not
     public String validate(String sid) throws MyServerException {
         try {
             Statement statement = connection.createStatement();
@@ -122,6 +129,8 @@ public class Database {
         }
     }
 
+    // checks if a user with this username exist or not,
+    // returns true if it does exist and false if it doesn't
     public boolean doesUserExist(String username) throws MyServerException {
         try {
             Statement statement = connection.createStatement();
@@ -186,6 +195,9 @@ public class Database {
         return Base64.getUrlEncoder().encodeToString(randomBytes);
     }
 
+    /*** Private Message ***/
+
+    // saves a private message to database
     public void savePM(String senderUsername, String receiverUsername, String message) throws MyServerException {
         try {
             int receiverId = findUser(receiverUsername);
@@ -205,6 +217,7 @@ public class Database {
         }
     }
 
+    // returns all messages of given user
     public ArrayList<PrivateMessage> getAllPrivateMessages(String username) throws MyServerException {
         try {
             Statement statement = connection.createStatement();
@@ -224,6 +237,7 @@ public class Database {
         }
     }
 
+    // returns all messages of given user with wanted user
     public ArrayList<PrivateMessage> getAllPrivateMessages(String requestedUser, String wantedUser) throws MyServerException {
         try {
             Statement statement = connection.createStatement();
@@ -256,6 +270,8 @@ public class Database {
         }
     }
 
+    // extracts private messages from given database query result set,
+    // returns a list of messages as PrivateMessage model
     private ArrayList<PrivateMessage> getPrivateMessages(ResultSet resultSet) throws SQLException, MyServerException {
         ArrayList<PrivateMessage> messages = new ArrayList<>();
         while (resultSet.next()) {
@@ -274,8 +290,217 @@ public class Database {
                 e.printStackTrace();
                 throw new MyServerException("Something went wrong");
             }
-            messages.add(new PrivateMessage(senderUsername, receiverUsername, message.length(), message, sendTime.getTime()));
+            messages.add(
+                    new PrivateMessage(
+                            senderUsername, receiverUsername, message.getBytes().length, message, sendTime.getTime()
+                    )
+            );
         }
         return messages;
+    }
+
+    private boolean doesGroupExist(String groupId) throws MyServerException {
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(String.format("SELECT group_id from \"group\" where group_id = \"%s\"", groupId));
+            return resultSet.isBeforeFirst();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    private int getGroupTableId(String groupId) throws MyServerException {
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(String.format("SELECT id from \"group\" where group_id = \"%s\"", groupId));
+            if (resultSet.isBeforeFirst()) return resultSet.getInt("id");
+            else return -1;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    public void insertNewGroup(String groupId, String ownerUsername) throws MyServerException {
+        int ownerId = findUser(ownerUsername);
+        if (ownerId == -1) throw new MyServerException("Owner user does not exist");
+        try {
+            if (doesGroupExist(groupId)) throw new MyServerException("This group id is already taken");
+            Statement statement = connection.createStatement();
+            statement.executeUpdate(String.format("INSERT INTO \"group\" (group_id, owner_id) VALUES (\"%s\", %d)", groupId, ownerId));
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    public void addUserToGroup(String groupId, String username) throws MyServerException {
+        int groupTableId = getGroupTableId(groupId);
+        if (groupTableId == -1) throw new MyServerException("No group with this id was found");
+        int userTableId = findUser(username);
+        if (userTableId == -1) throw new MyServerException("No user with this username exists");
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(
+                    String.format(
+                            "SELECT * FROM group_users where group_id = %d and user_id = %d",
+                            groupTableId, userTableId
+                    )
+            );
+            if (resultSet.isBeforeFirst()) throw new MyServerException("User has already joined the group");
+            statement.executeUpdate(String.format("INSERT INTO group_users (group_id, user_id) VALUES (%d, %d)", groupTableId, userTableId));
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    public void saveGM(String groupId, String senderUsername, String receiverUsername, String message) throws MyServerException {
+        int groupTableId = getGroupTableId(groupId);
+        if (groupTableId == -1) throw new MyServerException("No group with this id was found");
+        String senderIdString = null;
+        String receiverIdString = null;
+        int senderId;
+        int receiverId;
+        if (senderUsername != null) {
+            senderId = findUser(senderUsername);
+            if (senderId == -1) throw new MyServerException("No user with this username exists");
+            senderIdString = String.valueOf(senderId);
+        }
+        if (receiverUsername != null) {
+            receiverId = findUser(receiverUsername);
+            if (receiverId == -1) throw new MyServerException("No user with this username exists");
+            receiverIdString = String.valueOf(receiverId);
+        }
+        try {
+            Statement statement = connection.createStatement();
+            statement.executeUpdate(
+                    String.format(
+                            "INSERT INTO group_message (group_id, receiver_id, message, sender_id) " +
+                                    "VALUES (%d, \"%s\", \"%s\", \"%s\")",
+                            groupTableId, receiverIdString, message, senderIdString
+                    )
+            );
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    public ArrayList<String> getGroupUsers(String groupId) throws MyServerException {
+        int groupTableId = getGroupTableId(groupId);
+        if (groupTableId == -1) throw new MyServerException("No group with this id was found");
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(
+                    String.format(
+                            "SELECT * FROM user, group_users WHERE user.id = group_users.user_id AND group_id = %d",
+                            groupTableId
+                    )
+            );
+            ArrayList<String> users = new ArrayList<>();
+            while (resultSet.next()){
+                users.add(resultSet.getString("username"));
+            }
+            return users;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    public ArrayList<GroupMessage> getAllGroupMessages(String username) throws MyServerException {
+        int userId = findUser(username);
+        if (userId == -1) throw new MyServerException("No user with this username exists");
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(
+                    String.format(
+                            "select * from group_message " +
+                                    "where group_id in (SELECT group_id from group_users where user_id = %d) " +
+                                    "and (receiver_id is null or receiver_id = %d)",
+                            userId, userId
+                    )
+            );
+            return getGroupMessages(resultSet);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+    public ArrayList<GroupMessage> getAllGroupMessagesFrom(String username, String groupId) throws MyServerException {
+        int groupTableId = getGroupTableId(groupId);
+        if (groupTableId == -1) throw new MyServerException("No group with this id was found");
+        int userId = findUser(username);
+        if (userId == -1) throw new MyServerException("No user with this username exists");
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(
+                    String.format(
+                            "select * from group_message " +
+                                    "where group_id in " +
+                                    "(SELECT group_id from group_users " +
+                                    "where user_id = %d and group_users.group_id = %d) " +
+                                    "and (receiver_id is null or receiver_id = %d)",
+                            userId, groupTableId, userId
+                    )
+            );
+            return getGroupMessages(resultSet);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong");
+        }
+    }
+
+    private ArrayList<GroupMessage> getGroupMessages(ResultSet resultSet) throws SQLException, MyServerException {
+        ArrayList<GroupMessage> groupMessages = new ArrayList<>();
+        while (resultSet.next()){
+            int messageGroupId = resultSet.getInt("group_id");
+            String receiverId = resultSet.getString("receiver_id");
+            String message = resultSet.getString("message");
+            String senderId = resultSet.getString("sender_id");
+            String sendTimeString = resultSet.getString("created_at");
+
+            String senderUsername = null;
+            String receiverUsername = null;
+            if (senderId != null){
+                senderUsername = getUsername(Integer.parseInt(senderId));
+            }
+            if (receiverId != null){
+                receiverUsername = getUsername(Integer.parseInt(receiverId));
+            }
+            String groupId = getGroupId(messageGroupId);
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            Date sendTime;
+            try {
+                sendTime = formatter.parse(sendTimeString);
+            } catch (ParseException e) {
+                e.printStackTrace();
+                throw new MyServerException("Something went wrong");
+            }
+
+            groupMessages.add(
+                    new GroupMessage(groupId, senderUsername, sendTime.getTime(), receiverUsername, message)
+            );
+        }
+        return groupMessages;
+    }
+
+    private String getGroupId(int groupIndex) throws MyServerException {
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery(
+                    String.format(
+                            "SELECT group_id FROM \"group\" WHERE id = %d",
+                            groupIndex
+                    )
+            );
+            if (resultSet.isBeforeFirst()) return resultSet.getString("group_id");
+            else return null;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new MyServerException("Something went wrong!");
+        }
     }
 }

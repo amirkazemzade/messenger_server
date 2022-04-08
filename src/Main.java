@@ -1,11 +1,15 @@
+import sockets.GMSocket;
 import sockets.PMSocket;
-import sockets.ReceiverSocket;
+import sockets.AuthenticationSocket;
 
 public class Main {
     public static void main(String[] args) {
-        ReceiverSocket receiverSocket = new ReceiverSocket();
-        receiverSocket.run();
+        AuthenticationSocket authenticationSocket = new AuthenticationSocket();
+        authenticationSocket.run();
 
         PMSocket pmSocket = new PMSocket();
+
+        GMSocket gmSocket = new GMSocket();
+        gmSocket.run();
     }
 }
