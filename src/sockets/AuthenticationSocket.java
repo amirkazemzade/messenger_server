@@ -29,34 +29,36 @@ public class AuthenticationSocket {
                 server.bind(new InetSocketAddress(InetAddress.getByAddress(serverAddress), serverPort));
                 System.out.println("Receiver Socket has started");
                 while (true) {
-                    // todo add a new thread here
-                    try {
-                        System.out.println("waiting for a connection request from a client");
-                        // accepting client connect request
-                        Socket socket = server.accept();
-
-                        // creating input stream for receiving data
-                        DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-
-                        // handling request
+                    Socket socket = server.accept();
+                    Thread newThread = new Thread(() -> {
                         try {
-                            String message = in.readUTF();
-                            handleRequest(message, socket);
-                        } catch (MyServerException e) {
+                            System.out.println("waiting for a connection request from a client");
+                            // accepting client connect request
+
+                            // creating input stream for receiving data
+                            DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+
+                            // handling request
+                            try {
+                                String message = in.readUTF();
+                                handleRequest(message, socket);
+                            } catch (MyServerException e) {
+                                e.printStackTrace();
+                                DataOutputStream out = new DataOutputStream(
+                                        new BufferedOutputStream(
+                                                socket.getOutputStream()
+                                        )
+                                );
+                                out.writeUTF(e.getMessage());
+                                out.flush();
+                                socket.close();
+                            }
+                        } catch (Exception e) {
+                            System.out.println("an exception happen during connection with a client: ");
                             e.printStackTrace();
-                            DataOutputStream out = new DataOutputStream(
-                                    new BufferedOutputStream(
-                                            socket.getOutputStream()
-                                    )
-                            );
-                            out.writeUTF(e.getMessage());
-                            out.flush();
-                            socket.close();
                         }
-                    } catch (Exception e) {
-                        System.out.println("an exception happen during connection with a client: ");
-                        e.printStackTrace();
-                    }
+                    });
+                    newThread.start();
                 }
             } catch (Exception e) {
                 System.out.println("an exception happen while trying to run server: ");
